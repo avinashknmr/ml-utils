@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pandas = "*"
+seaborn = "*"
+scikit-learn = "*"
+
+[dev-packages]
+pdoc3 = "*"
+ipykernel = "*"
+ml-utils = {editable = true, path = "."}
+
+[requires]
+python_version = "3.8"

@@ -32,6 +32,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve
 
+__pdoc__ = {}
+__pdoc__[&#39;ml_utils.draw.trend_line&#39;] = False
+
 def gain_plot(y_actual, y_pred):
     &#34;&#34;&#34;Returns a lift chart or gains plot against True Positive Rate vs False Positive Rate&#34;&#34;&#34;
     f, ax = plt.subplots()
@@ -85,6 +88,20 @@ def csi_plot(df, var_name):
 <section>
 </section>
 <section>
+<h2 class="section-title" id="header-variables">Global variables</h2>
+<dl>
+<dt id="ml_utils.draw.trend_line"><code class="name">var <span class="ident">trend_line</span></code></dt>
+<dd>
+<div class="desc"><p>dummy</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class _BLACKLISTED_DUMMY:
+    pass</code></pre>
+</details>
+</dd>
+</dl>
 </section>
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
@@ -161,23 +178,6 @@ def csi_plot(df, var_name):
     return f</code></pre>
 </details>
 </dd>
-<dt id="ml_utils.draw.trend_line"><code class="name flex">
-<span>def <span class="ident">trend_line</span></span>(<span>Y)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def trend_line(Y):
-    y = np.array(Y)
-    x = np.arange(0, len(y))
-    z = np.polyfit(x,y,1)
-    trend = z[1] + z[0]*(x+1)
-    return trend</code></pre>
-</details>
-</dd>
 </dl>
 </section>
 <section>
@@ -194,12 +194,16 @@ def csi_plot(df, var_name):
 <li><code><a title="ml_utils" href="index.html">ml_utils</a></code></li>
 </ul>
 </li>
+<li><h3><a href="#header-variables">Global variables</a></h3>
+<ul class="">
+<li><code><a title="ml_utils.draw.trend_line" href="#ml_utils.draw.trend_line">trend_line</a></code></li>
+</ul>
+</li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="ml_utils.draw.csi_plot" href="#ml_utils.draw.csi_plot">csi_plot</a></code></li>
 <li><code><a title="ml_utils.draw.gain_plot" href="#ml_utils.draw.gain_plot">gain_plot</a></code></li>
 <li><code><a title="ml_utils.draw.iv_plot" href="#ml_utils.draw.iv_plot">iv_plot</a></code></li>
-<li><code><a title="ml_utils.draw.trend_line" href="#ml_utils.draw.trend_line">trend_line</a></code></li>
 </ul>
 </li>
 </ul>

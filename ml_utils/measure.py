@@ -5,59 +5,79 @@ from sklearn.metrics import average_precision_score, precision_recall_curve
 
 from .woe_binning import woe_binning, woe_binning_2, woe_binning_3
 
-def gains(df, target):
-    """Returns a pandas dataframe with gains along with KS and Gini calculated"""
-    df['scaled_score'] = (df['positive_probability']*1000000).round(0)
-    gains = df.groupby('scaled_score')[target].agg(['count','sum'])
-    gains.columns = ['total','resp']
-    gains.reset_index(inplace=True)
-    gains.sort_values(by='scaled_score', ascending=False)
-    gains['non_resp'] = gains['total'] - gains['resp']
-    gains['cum_resp'] = gains['resp'].cumsum()
-    gains['cum_non_resp'] = gains['non_resp'].cumsum()
-    gains['total_resp'] = gains['resp'].sum()
-    gains['total_non_resp'] = gains['non_resp'].sum()
-    gains['perc_resp'] = (gains['resp']/gains['total_resp'])*100
-    gains['perc_non_resp'] = (gains['non_resp']/gains['total_non_resp'])*100
-    gains['perc_cum_resp'] = gains['perc_resp'].cumsum()
-    gains['perc_cum_non_resp'] = gains['perc_non_resp'].cumsum()
-    gains['k_s'] = gains['perc_cum_resp'] - gains['perc_cum_non_resp']
-    return gains
+class Metrics:
+    def __init__(self, df, actual, prediction):
+        self.df = df
+        self.target = actual
+        self.actual = df[actual]
+        self.prediction = df[prediction]
+        self.gains = self.calculate_gains()
+        self.ks = self.ks()
+        self.gini = self.gini()
+        self.tn, self.fp, self.fn, self.tp, self.precision, self.recall, self.f1_score = self.precision_recall_f1_score()
 
-def get_threshold(df, target):
-    """Returns a pandas dataframe with y_pred based on threshold from roc_curve."""
-    fpr, tpr, threshold = roc_curve(df[target], df['positive_probability'])
-    threshold_cutoff_df = pd.DataFrame({'fpr': fpr, 'tpr': tpr, 'threshold': threshold})
-    threshold_cutoff_df['distance'] = ((threshold_cutoff_df['fpr']-0)**2+(threshold_cutoff_df['tpr']-1)**2)**0.5
-    threshold_cutoff_df['distance_diff'] = abs(threshold_cutoff_df['distance'].diff(periods=1))
-    for index, rows in threshold_cutoff_df.iterrows():
-        if index != 0 and index != threshold_cutoff_df.shape[0]-1:
-            curr_val = threshold_cutoff_df.loc[index, 'distance_diff']
-            prev_val = threshold_cutoff_df.loc[index-1, 'distance_diff']
-            next_val = threshold_cutoff_df.loc[index+1, 'distance_diff']
-            if curr_val>prev_val and curr_val>next_val:
-                threshold_cutoff = threshold_cutoff_df.loc[index, 'threshold']
-                break
-    return threshold_cutoff
+    def calculate_gains(self):
+        """Returns a pandas dataframe with gains along with KS and Gini calculated"""
+        self.df['scaled_score'] = (self.df['positive_probability']*1000000).round(0)
+        gains = self.df.groupby('scaled_score')[self.target].agg(['count','sum'])
+        gains.columns = ['total','responders']
+        gains.reset_index(inplace=True)
+        gains.sort_values(by='scaled_score', ascending=False)
+        gains['non_responders'] = gains['total'] - gains['responders']
+        gains['cum_resp'] = gains['responders'].cumsum()
+        gains['cum_non_resp'] = gains['non_responders'].cumsum()
+        gains['total_resp'] = gains['responders'].sum()
+        gains['total_non_resp'] = gains['non_responders'].sum()
+        gains['perc_resp'] = (gains['responders']/gains['total_resp'])*100
+        gains['perc_non_resp'] = (gains['non_responders']/gains['total_non_resp'])*100
+        gains['perc_cum_resp'] = gains['perc_resp'].cumsum()
+        gains['perc_cum_non_resp'] = gains['perc_non_resp'].cumsum()
+        gains['k_s'] = gains['perc_cum_resp'] - gains['perc_cum_non_resp']
+        return gains
 
-def ks_gini(df, target):
+    def get_threshold(self):
+        """Returns a pandas dataframe with y_pred based on threshold from roc_curve."""
+        fpr, tpr, threshold = roc_curve(self.actual, self.prediction)
+        threshold_cutoff_df = pd.DataFrame({'fpr': fpr, 'tpr': tpr, 'threshold': threshold})
+        threshold_cutoff_df['distance'] = ((threshold_cutoff_df['fpr']-0)**2+(threshold_cutoff_df['tpr']-1)**2)**0.5
+        threshold_cutoff_df['distance_diff'] = abs(threshold_cutoff_df['distance'].diff(periods=1))
+        for index, rows in threshold_cutoff_df.iterrows():
+            if index != 0 and index != threshold_cutoff_df.shape[0]-1:
+                curr_val = threshold_cutoff_df.loc[index, 'distance_diff']
+                prev_val = threshold_cutoff_df.loc[index-1, 'distance_diff']
+                next_val = threshold_cutoff_df.loc[index+1, 'distance_diff']
+                if curr_val>prev_val and curr_val>next_val:
+                    threshold_cutoff = threshold_cutoff_df.loc[index, 'threshold']
+                    break
+        return threshold_cutoff
+
+    def gini(self):
+        fpr, tpr, threshold = roc_curve(self.actual, self.prediction)
+        auroc = auc(fpr, tpr)
+        gini  = 2*auroc -1
+        return gini
+
+    def ks(self):
+        gains  = self.gains()
+        return gains['k_s'].max()
+
+    def precision_recall_f1_score(self):
+        threshold_cutoff = self.get_threshold()
+        self.y_pred = np.where(self.prediction>=threshold_cutoff,1,0)
+        self.df['y_pred'] = self.y_pred
+        tn, fp, fn, tp = confusion_matrix(self.actual, self.y_pred).ravel()
+        precision = precision_score(self.actual, self.y_pred)
+        recall = recall_score(self.actual, self.y_pred)
+        f1 = f1_score(self.actual, self.y_pred)
+        return tn, fp, fn, tp, precision, recall, f1
+
+    def to_dict(self):
+        return {'ks': self.ks, 'gini': self.gini, 'tn': self.tn, 'tp': self.tp, 'fn': self.fn, 'fp': self.fp, 'precision': self.precision, 'recall': self.recall, 'f1_score': self.f1_score}
+
+def standard_metrics(df, target_col, prediction_col):
     """Returns a dict with all metrics - Gini, KS, Precision, Recall, F1 Score, True Negative, True Positive, False Positive, False Negative."""
-    kpi  = gains(df, target)
-    fpr, tpr, threshold = roc_curve(df[target], df['positive_probability'])
-    auroc = auc(fpr, tpr)
-    gini  = 2*auroc -1
-    ks = kpi['k_s'].max()
-    threshold_cutoff = get_threshold(df, target)
-    df['y_pred'] = np.where(df['positive_probability']>=threshold_cutoff,1,0)
-    cm = confusion_matrix(df[target], df['y_pred'])
-    tn = cm[0.0]
-    fp = cm[0,1]
-    fn = cm[1,0]
-    tp = cm[1,1]
-    precision = precision_score(df[target],df['y_pred'])
-    recall = recall_score(df[target], df['y_pred'])
-    f1 = f1_score(df[target], df['y_pred'])
-    return {'ks': ks, 'gini': gini, 'tn': tn, 'tp': tp, 'fn': fn, 'fp': fp, 'precision': precision, 'recall': recall, 'f1_score': f1}
+    metrics = Metrics(df, target_col, prediction_col)
+    return metrics.to_dict()
 
 def quick_psi(dev, val):
     """Calculate PSI from 2 arrays - dev and val"""

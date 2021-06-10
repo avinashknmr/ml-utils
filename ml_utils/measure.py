@@ -92,9 +92,10 @@ def psi(dev, val, target='positive_probability', n_bins=10):
     dev['score'] = dev[target].apply(lambda x: round(500-30*np.log2(100*(x/(1-x))), 0))
     val['score'] = val[target].apply(lambda x: round(500-30*np.log2(100*(x/(1-x))), 0))
     
-    dev['bins'], bins = pd.qcut(dev.score, n_bins, retbins=True, precision=0)
+    _, bins = pd.qcut(dev.score, n_bins, retbins=True, precision=0)
     bins = [int(i) if abs(i)!=np.inf else i for i in bins]
-    val[bins] = pd.cut(val.score, bins)
+    dev['bins'] = pd.cut(dev.score, bins)
+    val['bins'] = pd.cut(val.score, bins)
 
     dev_bins = dev.bins.value_counts(sort=False, normalize=True)
     val_bins = val.bins.value_counts(sort=False, normalize=True)

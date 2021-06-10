@@ -13,18 +13,18 @@ def gain_plot(y_actual, y_pred):
     ax.set(xlabel='False Positive Rate', ylabel='True Positive Rate', title='Gains Plot / Lift Chart')
     return f
 
-def trend_line(Y):
+def _trend(Y):
     y = np.array(Y)
     x = np.arange(0, len(y))
     z = np.polyfit(x,y,1)
-    trend = z[1] + z[0]*(x+1)
-    return trend
+    trend_line = z[1] + z[0]*(x+1)
+    return trend_line
 
 def iv_plot(df, var_name, suffix='_dev'):
     """Returns an IV plot for a specified variable"""
     p_suffix = suffix.replace('_','').upper()
     sub_df = df.loc[df.var_name==var_name, ['var_cuts_string'+suffix, 'ln_odds'+suffix, 'resp_rate'+suffix, 'iv_bins'+suffix]]
-    sub_df['resp_rate_trend'+suffix] = trend_line(sub_df['resp_rate'+suffix])
+    sub_df['resp_rate_trend'+suffix] = _trend(sub_df['resp_rate'+suffix])
     iv_val = round(sub_df['iv_bins'+suffix].sum(), 4)
 
     f, ax = plt.subplots()
@@ -42,8 +42,8 @@ def iv_plot(df, var_name, suffix='_dev'):
 def csi_plot(df, var_name):
     """Returns a CSI plot for a specified variable"""
     sub_df = df.loc[df.var_name==var_name, ['var_cuts_string_dev','resp_rate_dev','resp_rate_val']]
-    sub_df['resp_rate_trend_dev'] = trend_line(sub_df['resp_rate_dev'])
-    sub_df['resp_rate_trend_val'] = trend_line(sub_df['resp_rate_val'])
+    sub_df['resp_rate_trend_dev'] = _trend(sub_df['resp_rate_dev'])
+    sub_df['resp_rate_trend_val'] = _trend(sub_df['resp_rate_val'])
     f, ax = plt.subplots()
     sns.lineplot(x='var_cuts_string_dev', y='resp_rate_dev', data=sub_df, color='red')
     sns.lineplot(x='var_cuts_string_dev', y='resp_rate_trend_dev', data=sub_df, color='red', linestyle='--')

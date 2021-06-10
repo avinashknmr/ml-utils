@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.metrics import roc_curve, auc, confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.metrics import average_precision_score, precision_recall_curve
 
-from .woe_binning import woe_binning, woe_binning_2, woe_binning_3
+from ._woe_binning import woe_binning, woe_binning_2, woe_binning_3
 
 class Metrics:
     def __init__(self, df, actual, prediction):
@@ -138,7 +138,7 @@ def chi_square(df, suffix='_dev'):
 
 def woe_bins(df, var_name, resp_name, suffix='_dev', var_cuts=None):
     """
-    Returns a pandas dataframe, var_cuts after creating bins basd on `ml_utils.woe_binning`.
+    Returns a pandas dataframe, var_cuts after creating bins.
     Returns:
         df: pandas dataframe has var_cuts_string, total, responders, non_responders, var_name (with _dev or _val suffix)
         var_cuts: list of Interval items to be used on val file.

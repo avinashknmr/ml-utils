@@ -7,9 +7,9 @@ name = "pypi"
 pandas = "*"
 seaborn = "*"
 scikit-learn = "*"
+pdoc = "*"
 
 [dev-packages]
-pdoc3 = "*"
 ipykernel = "*"
 ml-utils = {editable = true, path = "."}
 

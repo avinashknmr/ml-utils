@@ -39,6 +39,7 @@ class Metrics:
         """Returns a pandas dataframe with y_pred based on threshold from roc_curve."""
         fpr, tpr, threshold = roc_curve(self.actual, self.prediction)
         threshold_cutoff_df = pd.DataFrame({'fpr': fpr, 'tpr': tpr, 'threshold': threshold})
+
         threshold_cutoff_df['distance'] = ((threshold_cutoff_df['fpr']-0)**2+(threshold_cutoff_df['tpr']-1)**2)**0.5
         threshold_cutoff_df['distance_diff'] = abs(threshold_cutoff_df['distance'].diff(periods=1))
         for index, rows in threshold_cutoff_df.iterrows():
@@ -123,19 +124,25 @@ def gsi(data, col='GENDER', col_val='F', target='positive_probability', n_bins=1
     pivot['gsi'] = (pivot[col_val]-pivot['Rest'])*np.log(pivot[col_val]/pivot['Rest'])
     return pivot
 
-def chi_square(df, suffix='_dev'):
-    """Returns a pandas dataframe with calculated fields - resp_rate, perc_dist, perc_non_resp, perc_resp, raw_odds, ln_odds, iv_bins, exp_resp, exp_non_resp, chi_square."""
+def iv(df, suffix='_dev'):
+    """Returns a pandas dataframe with calculated fields - resp_rate, perc_dist, perc_non_resp, perc_resp, raw_odds, ln_odds, iv, exp_resp, exp_non_resp, chi_square."""
     df['resp_rate'+suffix] = (df['responders'+suffix]*100)/df['total'+suffix]
     df['perc_dist'+suffix] = (df['total'+suffix]*100)/df.groupby('var_name')['total'+suffix].transform('sum')
     df['perc_non_resp'+suffix] = (df['non_responders'+suffix]*100)/df.groupby('var_name')['non_responders'+suffix].transform('sum')
     df['perc_resp'+suffix] = (df['responders'+suffix]*100)/df.groupby('var_name')['responders'+suffix].transform('sum')
     df['raw_odds'+suffix] = df.apply(lambda r: 0 if r['perc_resp'+suffix]==0 else r['perc_non_resp'+suffix]/r['perc_resp'+suffix], axis=1)
     df['ln_odds'+suffix] = df['raw_odds'+suffix].apply(lambda x: 0 if abs(np.log(x))==np.inf else np.log(x))
-    df['iv_bins'+suffix] = (df['perc_non_resp'+suffix]-df['perc_resp'+suffix])*df['ln_odds'+suffix]/100
+    df['iv'+suffix] = (df['perc_non_resp'+suffix]-df['perc_resp'+suffix])*df['ln_odds'+suffix]/100
     df['exp_resp'+suffix] = df['total'+suffix]*df.groupby('var_name')['responders'+suffix].transform('sum')/df.groupby('var_name')['total'+suffix].transform('sum')
     df['exp_non_resp'+suffix] = df['total'+suffix]*df.groupby('var_name')['non_responders'+suffix].transform('sum')/df.groupby('var_name')['total'+suffix].transform('sum')
     df['chi_square'+suffix] = (((df['responders'+suffix]-df['exp_resp'+suffix])**2)/df['exp_resp'+suffix]) + (((df['non_responders'+suffix]-df['exp_non_resp'+suffix])**2)/df['exp_non_resp'+suffix])
     return df
+
+def iv_var(df, var_name, resp_name, suffix='_dev', var_cuts=None):
+    """Returns IV of a variable"""
+    summ_df, _ = woe_bins(df, var_name, resp_name, suffix, var_cuts)
+    iv_ = iv(summ_df, suffix)
+    return iv_, iv_['iv'+suffix].sum()
 
 def woe_bins(df, var_name, resp_name, suffix='_dev', var_cuts=None):
     """
@@ -150,10 +157,12 @@ def woe_bins(df, var_name, resp_name, suffix='_dev', var_cuts=None):
         if var_cuts is None:
             suffix = '_dev'
             var_cuts = woe_binning_3(df1, resp_name, var_name, 0.05, 0.00001, 0, 50, 'bad', 'good')
-        df['var_binned'] = pd.cut(df[var_name], var_cuts, right=True, labels=None, retbins=False, precision=10, include_lowest=False)
+            var_cuts = list(set(var_cuts))
+            var_cuts.sort()
+        df1.loc[:,'var_binned'] = pd.cut(df[var_name], var_cuts, right=True, labels=None, retbins=False, precision=10, include_lowest=False)
         var_min = float(df1[var_name].min())
         var_max = float(df1[var_name].max())
-        summ_df = df1.groupby('var_binnied')[resp_name].agg(['count','sum']).reset_index()
+        summ_df = df1.groupby('var_binned')[resp_name].agg(['count','sum']).reset_index()
         summ_df['delta'] = summ_df['count'] - summ_df['sum']
         summ_df['var_name'] = var_name
         summ_df.columns = ['var_cuts', 'total'+suffix, 'responders'+suffix, 'non_responders'+suffix, 'var_name']
@@ -169,6 +178,8 @@ def woe_bins(df, var_name, resp_name, suffix='_dev', var_cuts=None):
 
 def csi(dev_df, val_df, var_list, resp_name):
     """Returns a pandas dataframe with csi, csi_var, perc_csi columns (Charecteristic Stability Index) calculated based on both dev and val dataframes."""
+    dev_df.fillna(0, inplace=True)
+    val_df.fillna(0, inplace=True)
     dev_dfs = []
     var_cuts = {}
     for var_name in var_list:
@@ -177,7 +188,7 @@ def csi(dev_df, val_df, var_list, resp_name):
         var_cuts[var_name] = cut
     
     dev = pd.concat(dev_dfs, axis=0)
-    dev = chi_square(dev, '_dev')
+    dev = iv(dev, '_dev')
 
     val_dfs = []
     val_cuts = {}
@@ -187,7 +198,7 @@ def csi(dev_df, val_df, var_list, resp_name):
         val_cuts[var_name] = val_cut
 
     val = pd.concat(val_dfs, axis=0)
-    val = chi_square(val, '_val')
+    val = iv(val, '_val')
 
     final = pd.merge(dev, val, how='left', on=['var_name', 'var_cuts'], suffixes=['_dev','_val'])
     

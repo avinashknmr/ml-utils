@@ -20,12 +20,12 @@ def _trend(Y):
     trend_line = z[1] + z[0]*(x+1)
     return trend_line
 
-def iv_plot(df, var_name, suffix='_dev'):
+def iv_plot(df, var_name=None, suffix='_dev'):
     """Returns an IV plot for a specified variable"""
     p_suffix = suffix.replace('_','').upper()
-    sub_df = df.loc[df.var_name==var_name, ['var_cuts_string'+suffix, 'ln_odds'+suffix, 'resp_rate'+suffix, 'iv_bins'+suffix]]
+    sub_df = df if var_name is None else df.loc[df.var_name==var_name, ['var_cuts_string'+suffix, 'ln_odds'+suffix, 'resp_rate'+suffix, 'iv'+suffix]]
     sub_df['resp_rate_trend'+suffix] = _trend(sub_df['resp_rate'+suffix])
-    iv_val = round(sub_df['iv_bins'+suffix].sum(), 4)
+    iv_val = round(sub_df['iv'+suffix].sum(), 4)
 
     f, ax = plt.subplots()
     ax2 = ax.twinx()

@@ -8,10 +8,14 @@ pandas = "*"
 seaborn = "*"
 scikit-learn = "*"
 pdoc = "*"
+paramiko = "*"
+saspy = "*"
+tdqm = "*"
 
 [dev-packages]
 ipykernel = "*"
 ml-utils = {editable = true, path = "."}
+pdoc = "*"
 
 [requires]
 python_version = "3.8"

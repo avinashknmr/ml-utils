@@ -1,10 +1,17 @@
+# -*- coding: utf-8 -*-
+"""
+Functions for creating WoE Binning based on woeBinningPandas package with slight modifications.
+"""
 import pandas as pd
 import numpy as np
 import math
 import warnings
 import copy
 
-def woe_binning_3 (df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, bad, good):
+def woe_binning_3(df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, bad, good):
+    """
+    Returns cutpoints after applying `pandas.Series.quantile` cuts.
+    """
     cutpoints_backup = False
     stop_limit_exceeded = False
     list_level_a_collected = False
@@ -31,7 +38,10 @@ def woe_binning_3 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
         cutpoints = [int(i) if abs(i)!=np.inf else i for i in cutpoints]
         return cutpoints
 
-def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, bad, good):
+def woe_binning_2(df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, bad, good):
+    """
+    Returns binnings after processing cutpoints to create monotonous trend.
+    """
     cutpoints_backup = False
     stop_limit_exceeded = False
     list_level_a_collected = False
@@ -56,7 +66,7 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
         innercutpoints = [-np.inf] + list(cutpoints[1:len(cutpoints)-1]) + [np.inf]  # add -Inf, +Inf to cutpoints
         cutpoints = list(dict.fromkeys(innercutpoints))
         cutpoints = [int(i) if abs(i)!=np.inf else i for i in cutpoints]
-        
+
         ## Calculate initial crosstab from binned variable and target variable
         ## to identify and merge sparse bins
         
@@ -65,14 +75,15 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
         dfrm["predictor_var_binned"] = pd.cut(dfrm["predictor_var"], cutpoints, right=True, labels = None,
             retbins=False, precision=10, include_lowest=False)
             
-            
+    
+    
         # Compute crosstab from binned variable and target variable and covert it to a data frame
         freq_table = pd.crosstab(dfrm["predictor_var_binned"],dfrm["target_var"], dropna=True)
         freq_table = freq_table.reset_index(drop=False)
         missing=pd.DataFrame({'predictor_var_binned': ["Missing"],
                               0.0: [dfrm.isnull().sum(axis = 0)[0]],
                               1.0: [dfrm.isnull().sum(axis = 0)[1]]})
-        freq_table =freq_table.append(missing,ignore_index=True, sort=False)
+        freq_table =freq_table.append(missing,ignore_index=True)
         woe_dfrm = pd.DataFrame(freq_table) # Convert frequency table to data frame
         woe_dfrm = woe_dfrm.set_index(["predictor_var_binned"])
         
@@ -106,7 +117,7 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
                 missing=pd.DataFrame({'predictor_var_binned': ["Missing"],
                                       0.0: [dfrm.isnull().sum(axis = 0)[0]],
                                       1.0: [dfrm.isnull().sum(axis = 0)[1]]})
-                freq_table =freq_table.append(missing,ignore_index=True, sort=False)
+                freq_table =freq_table.append(missing,ignore_index=True)
                 woe_dfrm = pd.DataFrame(freq_table) # Convert frequency table to data frame
                 woe_dfrm = woe_dfrm.set_index(["predictor_var_binned"])
                 # Compute columns percents for target classes from crosstab frequencies
@@ -140,10 +151,9 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
                 missing=pd.DataFrame({'predictor_var_binned': ["Missing"],
                                       0.0: [dfrm.isnull().sum(axis = 0)[0]],
                                       1.0: [dfrm.isnull().sum(axis = 0)[1]]})
-                freq_table =freq_table.append(missing,ignore_index=True, sort=False)
+                freq_table =freq_table.append(missing,ignore_index=True)
                 woe_dfrm = pd.DataFrame(freq_table) # Convert frequency table to data frame
                 woe_dfrm = woe_dfrm.set_index(["predictor_var_binned"])
-                #woe_dfrm = woe_dfrm[['good', 'bad']]  # Select columns with raw frequencies only
                 # Compute columns percents for target classes from crosstab frequencies
                 woe_dfrm["col_perc_a"] = woe_dfrm[good]/sum(woe_dfrm[good])
                 woe_dfrm["col_perc_b"] = woe_dfrm[bad]/sum(woe_dfrm[bad])
@@ -173,7 +183,7 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
             missing=pd.DataFrame({'predictor_var_binned': ["Missing"],
                                   0.0: [dfrm.isnull().sum(axis = 0)[0]],
                                   1.0: [dfrm.isnull().sum(axis = 0)[1]]})
-            freq_table =freq_table.append(missing,ignore_index=True, sort=False)
+            freq_table =freq_table.append(missing,ignore_index=True)
             woe_dfrm = pd.DataFrame(freq_table) # Convert frequency table to data frame
             woe_dfrm = woe_dfrm.set_index(["predictor_var_binned"])
             
@@ -267,7 +277,7 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
         elif good == 0 and bad==1:    
             look_up_table = look_up_table.rename(index=str, columns={0: "good", 1: "bad"})  
         
-        binning = pd.concat([(woe_dfrm_final["woe"]).reset_index(drop=False), look_up_table["cutpoints_final"].reset_index(drop=True), look_up_table["upper_cutpoints_final_dfrm"].reset_index(drop=True), look_up_table["iv_total_final"].reset_index(drop=True), look_up_table["good"].reset_index(drop=True), look_up_table["bad"].reset_index(drop=True), look_up_table["col_perc_a"].reset_index(drop=True), look_up_table["col_perc_b"].reset_index(drop=True), woe_dfrm_final["iv_bins"].reset_index(drop=True)], axis=1, sort=False).set_index(["predictor_var_binned"])
+        binning = pd.concat([(woe_dfrm_final["woe"]).reset_index(drop=False), look_up_table["cutpoints_final"].reset_index(drop=True), look_up_table["upper_cutpoints_final_dfrm"].reset_index(drop=True), look_up_table["iv_total_final"].reset_index(drop=True), look_up_table["good"].reset_index(drop=True), look_up_table["bad"].reset_index(drop=True), look_up_table["col_perc_a"].reset_index(drop=True), look_up_table["col_perc_b"].reset_index(drop=True), woe_dfrm_final["iv_bins"].reset_index(drop=True)], axis=1).set_index(["predictor_var_binned"])
     
     
     
@@ -472,12 +482,14 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
         ## Save final binning solution via look-up-table for deployment
         df[pred_var] = df[pred_var].astype('category')
         df[pred_var]=df[pred_var].cat.add_categories(["Missing"]) # add factor level 'Missing'
-        df[pred_var] = df[pred_var].fillna("Missing")   # replace NA with string 'Missing'
+        df[pred_var] = df[pred_var].astype(object).fillna("Missing")
+        #df[pred_var] = df[pred_var].fillna("Missing")   # replace NA with string 'Missing'
         
         look_up_table = df.groupby([df[pred_var],df[df.columns[len(df.columns)-2]]])
         look_up_table = look_up_table[[df.columns[len(df.columns)-1]]].mean().dropna().reset_index(drop=False)
         
-        look_up_table =pd.concat([look_up_table.iloc[:,1],look_up_table.drop(columns=[look_up_table.columns[1]])], axis=1)
+        #look_up_table =pd.concat([look_up_table.iloc[:,1],look_up_table.drop(columns=[look_up_table.columns[1]])], axis=1)
+        look_up_table =pd.concat([look_up_table.iloc[:,1],look_up_table.drop(labels=[look_up_table.columns[1]])], axis=1)
         look_up_table = look_up_table.rename(index=str, columns={look_up_table.columns[0]: "Group_2", look_up_table.columns[1]: "Group_1"})
         
         look_up_table = pd.concat([look_up_table.reset_index(drop=True), iv_total_final], axis=1)   # add column with final total Information Value
@@ -514,7 +526,9 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
             
         binning=look_up_table
             
-             
+            
+    
+            
     #### Check for correct variable specification and
     #### generate requested output, in case specification is correct
     
@@ -525,7 +539,6 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
 
     
     ### Generate requested output, in case specification is correct
-    
     else:
         ## Function passes the final binning solution as look-up table
         look_up_table
@@ -533,7 +546,9 @@ def woe_binning_2 (df, target_var, pred_var, min_perc_total, min_perc_class, sto
     return binning
 
 def woe_binning (df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, event_class):
-#### Warning message and defaults in case parameters are not specified
+    """
+    Warning message and defaults in case parameters are not specified
+    """
     if df.isnull().values.any()==True or type(target_var) is str == False or type(pred_var) is str == False:
         warnings.warn("Incorrect specification of data frame and/or variables.")
     
@@ -566,7 +581,7 @@ def woe_binning (df, target_var, pred_var, min_perc_total, min_perc_class, stop_
         abbrev_fact_levels=200
 
     #### Display warning message in case of incorrect target variable specification
-    if len(df[target_var].drop_duplicates().isna())!=2:
+    if len(df[target_var].drop_duplicates().isnull())!=2:
         warnings.warn("Incorrect variable specification.\nTarget variable must have two distinct values (NAs are accepted).")
 
     #### Display warning message in case none of the target classes matches the specified event.class parameter
@@ -591,9 +606,7 @@ def woe_binning (df, target_var, pred_var, min_perc_total, min_perc_class, stop_
     good = int(good)
 
     #### Subset: consider only cases without NA in target variable
-    df = df[df[target_var].isna()==False]
+    df = df[df[target_var].isnull()==False]
     
     #### Call actual binning function and put binning solutions together with respective variable names into a list
-    woe_binning_2(df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, bad, good)
-
     return woe_binning_2(df, target_var, pred_var, min_perc_total, min_perc_class, stop_limit, abbrev_fact_levels, bad, good)

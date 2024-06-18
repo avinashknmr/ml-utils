@@ -71,7 +71,7 @@ def iv_var(df, var_name, resp_name, var_cuts=None):
     """Returns IV dataframe and IV value of a given variable"""
     suffix = '_dev' if var_cuts is None else '_oot'
     iv_df, _ = iv(df, var_name, resp_name, var_cuts)
-    return iv_df, iv_df['iv'+suffix].sum()
+    return iv_df, float(iv_df['iv'+suffix].sum())
 
 def iv(df, var_list, resp_name, var_cuts=None):
     """
@@ -164,7 +164,7 @@ def csi(dev_df, oot_df, var_list, resp_name):
     final['perc_csi'] = (100*final.groupby('var_name')['csi'].transform('cumsum'))/final.groupby('var_name')['csi'].transform('sum')
     return final
 
-class Metrics:
+class OldMetrics:
     def __init__(self, df, resp_col, prediction_col):
         self.df = df
         self.target = resp_col

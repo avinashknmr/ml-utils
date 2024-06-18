@@ -15,7 +15,7 @@ pip install .
 
 ## Features
 Complete list of features along with documentation is available under [docs](./docs/ml_utils/index.html)
-1. Data Preprocessing
+1. Data Preprocessing (preprocess)
     - Normalize / Standardize
     - Impute
     - Outlier Detection & Treatment
@@ -23,25 +23,25 @@ Complete list of features along with documentation is available under [docs](./d
     - Feature Selection
     - Feature Extraction
     - Collinearity Detection & Removal
-3. Model Development
-    - Train Test Split
+3. Model Development (prepare_data)
+    - Train Test Validation Split
     - Cross Validation Split
     - Under Sampling
     - Over Sampling
-4. Model Evaluation
+4. Model Evaluation (measure)
     - Cross Validation
-    - Metrics
+    - Metrics (metrics)
         - KS, Gini
         - Decile Analysis, IV, WoE Bins
         - Accuracy, Precision, Recall, F1 Score, Confusion Matrix
         - Gain / Lift Chart, Optimal Threshold
-    - Bias & Fairness Framework
+    - Bias & Fairness Framework (bias_fairness)
         - GSI (Group Stability Index)
-    - Data Drift & Monitoring
+    - Data Drift & Monitoring (data_drift)
         - PSI, CSI
-5. Model Explainability
+5. Model Explainability (explain)
     - Feature Importances
-6. Visualization
+6. Visualization (draw)
     - ROC AUC Curve
     - Precision Recall Curve
     - CSI, IV
@@ -52,7 +52,7 @@ Complete list of features along with documentation is available under [docs](./d
 8. Advanced Utilties
     - Custom Transformers
     - Pipeline Utilities
-9. Logging (Logger)
+9. Logging (logger)
 
 ## Usage
 ```python

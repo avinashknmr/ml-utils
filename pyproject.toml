@@ -1,41 +1,22 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[project]
+[tool.poetry]
 name = "ml-utils"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Helper functions for all binary classification modelling problems including visualisations, scoring metrics - psi, ks, gini."
+authors = ["avinashknmr <avinash.eee@gmail.com>"]
+license = "BSD"
 readme = "README.md"
-license = {text = "BSD License"}
-authors = [
-    { name = "Avinash Kanumuru", email = "avinash.eee@gmail.com" },
-]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-]
-dependencies = [
-    "openpyxl",
-    "paramiko",
-    "saspy",
-    "scikit-learn",
-    "seaborn",
-    "tqdm",
-]
 
-[tool.hatch.version]
-path = "ml_utils/__init__.py"
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.2.2"
+seaborn = "^0.13.2"
+scikit-learn = "^1.5.0"
+openpyxl = "^3.1.4"
+tqdm = "^4.66.4"
+xgboost = "^2.0.3"
+lightgbm = "^4.4.0"
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "/ml_utils",
-]
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

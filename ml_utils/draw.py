@@ -13,10 +13,44 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, precision_recall_curve
-import logging
+import logging, os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
 logger = logging.getLogger("ML UTILS")
+
+sns.set_theme(style="whitegrid")
+
+def density_plot(data, feature, target=None):
+    """
+    Args:
+        data: dataframe
+        feature: feature for which plot has to be created
+        target: (optional) create sub charts based on target in same plot
+    """
+    if data[feature].dtype in ['object','bool']:
+        f = sns.displot(data=data, x=feature, hue=target, stat="density", common_norm=False, element='bars', aspect=2)
+    else:
+        f = sns.displot(data=data, x=feature, hue=target, bins=20, stat="density", common_norm=False, element='step', aspect=2)
+        # sns.boxplot(data=data, y=feature, x=target)
+    return f
+
+def export_density_plots(data, features, out_folder, target=None):
+    """
+    Args:
+        data: dataframe
+        features: list of features for which plot has to be created
+        out_folder: folder to which plots has to be saved
+        target: (optional) create sub charts based on target in same plot
+    """
+    if not os.path.exists(out_folder):
+        os.mkdir(out_folder)
+    for f in features:
+        plot = density_plot(data, f, target=target)
+        try:
+            fig = plot.get_figure()
+            fig.savefig(os.path.join(out_folder, f+'.png'))
+        except:
+            plot.fig.savefig(os.path.join(out_folder, f+'.png'))
 
 def roc_plot(actual, predicted, figsize=(7,5)):
     """
@@ -59,13 +93,13 @@ def precision_recall_plot(actual, predicted, figsize=(7,5)):
     plt.close(f)
     return f
 
-def correlation_plot(df, cols=None, annot=True, rotate_xlabels=True, figsize=(7,5)):
+def correlation_plot(data, features=None, annot=True, rotate_xlabels=True, figsize=(7,5)):
     """
     Returns a correlation plot as `seaborn.heatmap` headmap with annotations.
     ![Correlation Plot](./corr_plot.png "HeatMap")
     """
     f, ax = plt.subplots(1, 1, figsize=figsize)
-    mdf = df if cols is None else df[cols]
+    mdf = data if features is None else data[features]
     corr = mdf.corr()
     mask = np.zeros_like(corr, dtype=bool)
     mask[np.triu_indices_from(mask)] =True
@@ -83,14 +117,14 @@ def _trend(Y):
     trend_line = z[1]+z[0]*(x+1)
     return trend_line
 
-def iv_plot(df, var_name=None, suffix='_dev', figsize=(7,5)):
+def iv_plot(data, feature=None, suffix='_dev', figsize=(7,5)):
     """
     Returns a plot with reponse rate and ln odds on y axis for various variable bins
     created from `ml_utils.measure.woe_bins`. Also called as IV chart internally.
     ![IV Plot](./iv_plot.png "IV Plot")
     """
     p_suffix = suffix.replace('_','').upper()
-    sub_df = df if var_name is None else df.loc[df.var_name==var_name, ['var_cuts_string'+suffix,'ln_odds'+suffix,'resp_rate'+suffix,'iv'+suffix]]
+    sub_df = data if feature is None else data.loc[data.var_name==feature, ['var_cuts_string'+suffix,'ln_odds'+suffix,'resp_rate'+suffix,'iv'+suffix]]
     sub_df['resp_rate_trend'+suffix]= _trend(sub_df['resp_rate'+suffix])
     iv_val = round(sub_df['iv'+suffix].sum(),4)
     
@@ -101,21 +135,21 @@ def iv_plot(df, var_name=None, suffix='_dev', figsize=(7,5)):
     sns.lineplot(x='var_cuts_string'+suffix, y='ln_odds'+suffix, data=sub_df, color='darkgreen', ax=ax2)
     
     ax.set_xticklabels(list(sub_df['var_cuts_string'+suffix]),rotation=45, ha='right')
-    ax.set(xlabel='Variable Bins', ylabel=f'Resp Rate ({p_suffix})', title=f'IV of {var_name} ({iv_val})')
+    ax.set(xlabel='Variable Bins', ylabel=f'Resp Rate ({p_suffix})', title=f'IV of {feature} ({iv_val})')
     ax2.set(ylabel=f'Log Odds ({p_suffix})')
     ax.legend(handles=[l for a in [ax, ax2] for l in a.lines], labels=[f'Resp Rate ({p_suffix})',f'Resp Rate Trend ({p_suffix})', f'Log Odds ({p_suffix})'], loc=0)
     f.tight_layout()
     plt.close(f)
     return f
 
-def csi_plot(df, var_name, figsize=(7,5)):
+def csi_plot(data, feature, figsize=(7,5)):
     """
     Returns a plot response rate and their trend line for both dev and oot
     for various variable bins created in the process of CSI calculation
     using `ml_utils.measure.iv` and `ml_utils.measure.csi`.
     Also called as CSI chart internally.
     """
-    sub_df = df.loc[df.var_name==var_name, ['var_cuts_string_dev','resp_rate_dev', 'resp_rate_oot','csi']]
+    sub_df = data.loc[data.var_name==feature, ['var_cuts_string_dev','resp_rate_dev', 'resp_rate_oot','csi']]
     sub_df['resp_rate_trend_dev']=_trend(sub_df['resp_rate_dev'])
     sub_df['resp_rate_trend_oot']=_trend(sub_df['resp_rate_oot'])
     csi_val = round(sub_df['csi'].sum(),4)
@@ -125,7 +159,7 @@ def csi_plot(df, var_name, figsize=(7,5)):
     sns.lineplot(x='var_cuts_string_dev', y='resp_rate_oot', data=sub_df, color='darkgreen')
     sns.lineplot(x='var_cuts_string_dev', y='resp_rate_trend_oot', data=sub_df, color='darkgreen', linestyle='--')
     ax.set_xticklabels(list(sub_df['var_cuts_string_dev']),rotation=45, ha='right')
-    ax.set(xlabel='Variable Bins', ylabel=f'Resp Rate', title=f'CSI of {var_name} ({csi_val})')
+    ax.set(xlabel='Variable Bins', ylabel=f'Resp Rate', title=f'CSI of {feature} ({csi_val})')
     ax.legend(handles=[l for a in [ax] for l in a.lines], labels=['Resp Rate (Dev)','Resp Rate (Dev) Trend','Resp Rate (OOT)','Resp Rate (OOT) Trend'], loc=0)
     f.tight_layout()
     plt.close(f)

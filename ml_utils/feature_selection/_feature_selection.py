@@ -5,8 +5,11 @@ Chi Square with IV (Informational Value)
 """
 import pandas as pd
 import numpy as np
-from sklearn.metrics import roc_curve, auc, confusion_matrix, precision_score, recall_score, f1_score
-from sklearn.metrics import average_precision_score, precision_recall_curve
+from sklearn.model_selection import train_test_split
+import lightgbm as lgb
+
+from ..measure.data_drift import csi
+from ..explore_data import correlated_cols
 
 from ._woe_binning import woe_binning, woe_binning_2, woe_binning_3
 
@@ -14,26 +17,6 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
 logger = logging.getLogger("ML UTILS")
-
-def decilewise_counts(df, resp_col, prediction_col='positive_probability', bins=10, cutpoints=None):
-    """
-    Returns a summarized pandas dataframe with total and responders for each decile based on `positive_probability`.
-    """
-    if cutpoints is None:
-        cutpoints = df[prediction_col].quantile(np.arange(0,bins+1)/bins).reset_index(drop=True)
-        cutpoints = list(set([0]+list(cutpoints[1:-1])+[1]))
-    df['bins'] = pd.cut(df[prediction_col], cutpoints, duplicates='drop')
-    out_df = df.groupby('bins')[resp_col].agg(['count','sum']).sort_values(by=['bins'], ascending=False).reset_index()
-    out_df.columns = ['band','total','resp']
-    return out_df
-
-def standard_metrics(df, resp_col, prediction_col='positive_probability'):
-    """
-    Returns metrics like KS, Gini, Optimal Threshold, TN, FP, FN, TP, Precision, Recall and F1 Score
-    from `ml_utils.measure.Metrics` object.
-    """
-    metrics = Metrics(df, resp_col, prediction_col)
-    return metrics.to_dict()
 
 def woe_bins(df, var_name, resp_name, suffix='_dev', var_cuts=None):
     """
@@ -102,142 +85,173 @@ def iv(df, var_list, resp_name, var_cuts=None):
     idf['chi_square'+suffix] = (((idf['responders'+suffix]-idf['exp_resp'+suffix])**2)/idf['exp_resp'+suffix])+(((idf['non_responders'+suffix]-idf['exp_non_resp'+suffix])**2)/idf['exp_non_resp'+suffix])
     return idf, cuts
 
-def _quick_psi(dev, val):
-    """Calculates PSI from 2 arrays - dev and val"""
-    try:
-        return sum([(a-b)*np.log(a/b) for (a,b) in zip(dev,val)])
-    except:
-        return -99.0
-
-def psi(dev, oot, target='positive_probability', n_bins=10):
+def get_multivariate_feature_importances(data, labels, eval_metric, early_stopping=True, n_iterations=10):
     """
-    Returns a pandas dataframe with **psi** column (Population Stability Index) after creating 10 deciles.
-    Code includes creating score calculation using **round(500-30xlog(100x(p/(1-p))), 0)** where p is probability.
-    We need to pass both dev and oot at sametime to apply same bins created on dev dataframe.
+    Get feature importances by building a LightGBM model. All features are considered while building model and feature importance is feature importance of LightGBM model.
+    Also computes normalized and relative importances.
     """
-    dev['score'] = dev[target].apply(lambda x: round(500-30*np.log2(100*(x/(1-x))), 0))
-    oot['score'] = oot[target].apply(lambda x: round(500-30*np.log2(100*(x/(1-x))), 0))
+    if early_stopping and eval_metric is None:
+        raise ValueError("""eval metric must be provided with early stopping. Examples include "auc" for classification or
+                            "l2" for regression.""")
+            
+    if labels is None:
+        raise ValueError("No training labels provided.")
+    
+    # One hot encoding
+    base_features = data.columns
+    features = pd.get_dummies(data, prefix_sep='|', drop_first=True)
+    one_hot_features = [column for column in features.columns if column not in base_features]
 
-    _, bins = pd.qcut(dev.score, n_bins, retbins=True, precision=0)
-    bins = [int(i) if abs(i)!=np.inf else i for i in bins]
-    dev['bins'] = pd.cut(dev.score, bins)
-    oot['bins'] = pd.cut(oot.score, bins)
+    # Add one hot encoded data to original data
+    data_all = pd.concat([features[one_hot_features], data], axis = 1)
 
-    dev_bins = dev.bins.value_counts(sort=False, normalize=True)
-    oot_bins = oot.bins.value_counts(sort=False, normalize=True)
+    # Extract feature names
+    feature_names = list(features.columns)
 
-    psi_ = pd.concat([dev_bins, oot_bins], axis=1)
-    psi_.columns=['dev', 'oot']
-    psi_['psi'] = (psi_.dev-psi_.oot)*np.log(psi_.dev/psi_.oot)
-    return psi_
+    # Convert to np array
+    features = np.array(features)
+    labels = np.array(labels).reshape((-1, ))
 
-def gsi(data, col='GENDER', col_val='F', target='positive_probability', n_bins=10):
+    # Empty array for feature importances
+    feature_importance_values = np.zeros(len(feature_names))
+    
+    # Iterate through each fold
+    for _ in range(n_iterations):
+        
+        model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1)
+            
+        # If training using early stopping need a validation set
+        if early_stopping:
+            
+            train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.15, random_state=1234)
+
+            # Train the model with early stopping
+            model.fit(train_features, train_labels, eval_metric = eval_metric,
+                        eval_set = [(valid_features, valid_labels)],
+                        early_stopping_rounds = 100, verbose = 0)
+            
+        else:
+            model.fit(features, labels)
+
+        # Record the feature importances
+        feature_importance_values += model.feature_importances_ / n_iterations
+
+    feature_importances = pd.DataFrame({'feature': feature_names, 'importance': feature_importance_values})
+
+    # Sort features according to importance
+    feature_importances = feature_importances.sort_values('importance', ascending = False).reset_index(drop = True)
+
+    # Normalize the feature importances to add up to one
+    imp = feature_importances['importance']
+    feature_importances['normalized_importance'] = feature_importances['importance'] / feature_importances['importance'].sum()
+    feature_importances['relative_importance'] = (imp - imp.min()) / (imp.max() - imp.min())
+    feature_importances['cumulative_importance'] = np.cumsum(feature_importances['normalized_importance'])
+
+    return feature_importances
+
+def get_univariate_feature_importances(data, labels, eval_metric, early_stopping=True, n_iterations=10):
     """
-    Returns a pandas dataframe with gsi column for 10 bins created.
+    Get feature importances by building a LightGBM model. Models are created with one feature at a time and feature importance is eval metric used for the LightGBM model.
+    This is time consuming process if there are too many features, as those many models will be developed to compute importances and this is the reason to choose LightGBM, as it is fast and accurate.
+    Also computes normalized and relative importances.
+    """
+    if early_stopping and eval_metric is None:
+        raise ValueError("""eval metric must be provided with early stopping. Examples include "auc" for classification or
+                            "l2" for regression.""")
+            
+    if labels is None:
+        raise ValueError("No training labels provided.")
+    
+    base_features = data.columns
+    # Empty array for feature importances
+    feature_importance_values = {}
+    for feature in base_features:
+        if data[feature].dtype in ['object', 'bool']:
+            features = pd.get_dummies(data[feature])
+            features = np.array(features)
+        else:
+            features = data[feature]
+            features = np.array(features).reshape(-1,1)
+
+        # Convert to np array
+        labels = np.array(labels).reshape((-1, ))
+        
+        # Iterate through each fold
+        for _ in range(n_iterations):
+
+            model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1)
+                
+            # If training using early stopping need a validation set
+            if early_stopping:
+                
+                train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.15, random_state=1234)
+
+                # Train the model with early stopping
+                model.fit(train_features, train_labels, eval_metric = eval_metric,
+                            eval_set = [(valid_features, valid_labels)],
+                            early_stopping_rounds = 100, verbose = 0)
+                
+            else:
+                model.fit(features, labels)
+        feature_importance_values[feature] = model.best_score_['valid_0'][eval_metric]
+
+    feature_importances = pd.DataFrame(feature_importance_values, index=[0]).T.reset_index()
+    feature_importances.columns = ['feature', 'importance']
+
+    # Sort features according to importance
+    feature_importances = feature_importances.sort_values('importance', ascending = False).reset_index(drop = True)
+
+    # Normalize the feature importances to add up to one
+    imp = feature_importances['importance']
+    feature_importances['normalized_importance'] = imp / imp.sum()
+    feature_importances['relative_importance'] = (imp - imp.min()) / (imp.max() - imp.min())
+    feature_importances['cumulative_importance'] = np.cumsum(feature_importances['normalized_importance'])
+
+    return feature_importances
+
+
+def get_feature_importances(dev_df, val_df, features, target, metric='auc', method='univariate', n_bins=20, iv_ll=.05, iv_ul=1.0, csi_ul=.25, corr=0.9):
+    """
     Args:
-        data: pandas dataframe
-        col: column on which Group Stability Index has to be calculated (ex - Gender column)
-        col_val: the selected value will be compared with reset of values (ex - F vs Rest for Gender column)
-        target: score column using jar file (default=positive_probability)
-        n_bins: number of bins to be created (default=10)
+        dev_df: development dataframe
+        val_df: validation dataframe (to compute csi and filter)
+        features: list of predictor variables or features
+        target: target variable name
+        metric: eval metric to be used for feature importance computation
+        method: method to be used for feature importance computation. allowed values - `univariate` and `multivariate`
+        n_bins: no of bins for IV or CSI computation (default=20)
+        iv_ll: IV lower cutoff
+        iv_ul: IV upper cutoff
+        csi_ul: CSI upper cuttoff
+        corr: correlation threshold
+    Returns:
+        feature importance data frame with IV, CSI, Feature Importance with Normalized and Relative Importance. And list of final features considered.
     """
-    df = data.copy()
-    df['decile'] = pd.qcut(df[target], n_bins, labels=False)
-    df.loc[df[col]!=col_val, col] = 'Rest'
-    pivot_ = df.groupby(['decile', col])[target].count().unstack()
-    pivot = pivot_.div(pivot_.sum(axis=0),axis=1)
-    pivot['gsi'] = (pivot[col_val]-pivot['Rest'])*np.log(pivot[col_val]/pivot['Rest']) # this is wrong
-    return pivot
-
-def csi(dev_df, oot_df, var_list, resp_name):
-    """
-    Returns a pandas dataframe with **csi, csi_var, perc_csi** columns (Charecteristic Stability Index) calculated based on both dev and oot dfataframes.
-    """
-    dev, var_cuts = iv(dev_df, var_list, resp_name)
-
-    oot, _ = iv(oot_df, var_list, resp_name, var_cuts)
-
-    final = pd.merge(dev, oot, how='left', on=['var_name', 'var_cuts'], suffixes=['_dev', '_oot'])
-
-    final['csi'] = ((final['perc_dist_dev']-final['perc_dist_oot'])/100)*np.log(final['perc_dist_dev']/final['perc_dist_oot'])
-    final['csi_var'] = final.groupby('var_name')['csi'].transform('sum')
-    final['perc_csi'] = (100*final.groupby('var_name')['csi'].transform('cumsum'))/final.groupby('var_name')['csi'].transform('sum')
-    return final
-
-class OldMetrics:
-    def __init__(self, df, resp_col, prediction_col):
-        self.df = df
-        self.target = resp_col
-        self.actual = df[resp_col]
-        self.predicted = df[prediction_col]
-        self.gains = self.calculate_gains()
-        self.ks = self.ks()
-        self.gini = self.gini()
-        self.threshold = self.get_threshold()
-        self.tn, self.fp, self.fn, self.tp, self.precision, self.recall, self.f1_score = self.precision_recall_f1_score()
-
-    def calculate_gains(self):
-        """
-        Returns a pandas dataframe with responders, non responders, cummulative totals,
-        percentage totals and percentage cummulative totals calculated.
-        """
-        self.df['scaled_score']=(self.predicted*1000000).round(0)
-        gains = self.df.groupby('scaled_score')[self.target].agg(['count','sum'])
-        gains.columns = ['total','responders']
-        gains.reset_index(inplace=True)
-        gains = gains.sort_values(by='scaled_score',ascending=False)
-        gains['non_responders'] = gains['total']-gains['responders']
-        gains['cum_resp'] = gains['responders'].cumsum()
-        gains['cum_non_resp'] = gains['non_responders'].cumsum()
-        gains['total_resp'] = gains['responders'].sum()
-        gains['total_non_resp'] = gains['non_responders'].sum()
-        gains['perc_resp'] = gains['responders']/gains['total_resp']
-        gains['perc_non_resp'] = gains['non_responders']/gains['total_non_resp']
-        gains['perc_cum_resp'] = gains['perc_resp'].cumsum()
-        gains['perc_cum_non_resp'] = gains['perc_non_resp'].cumsum()
-        gains['k_s'] = gains['perc_cum_resp']-gains['perc_cum_non_resp']
-        return gains
-
-    def get_threshold(self):
-        """
-        Returns a threshold cutoff value from `sklearn.metrics.roc_curve` using actual and predicted values.
-        """
-        fpr,tpr,threshold = roc_curve(self.actual,self.predicted) 
-        gmean = np.sqrt(tpr*(1-fpr))
-        youdenJ = tpr-fpr
-        threshold_gmean = round(threshold[np.argmax(gmean)], 4)
-        threshold_yJ = round(threshold[np.argmax(youdenJ)], 4)
-        threshold_cutoff = max(threshold_gmean, threshold_yJ)
-        return threshold_cutoff
-
-    def ks(self):
-        """
-        Returns KS value calculated from `ml_utils.measure.Metrics.calculate_gains` function.
-        """
-        return self.gains['k_s'].max()
-
-    def gini(self):
-        """
-        Returns Gini value calculated from actual and predicted using
-        `sklearn.metrics.roc_curve` and `sklearn.metrics.auc`.
-        """
-        fpr, tpr, _ = roc_curve(self.actual, self.predicted)
-        auroc = auc(fpr, tpr)
-        gini = 2*auroc - 1
-        return gini
-
-    def precision_recall_f1_score(self):
-        """
-        Calculates TN, FP, FN, TP, Precision, Recall, F1 Score using Optimal Threshold value. 
-        """
-        threshold_cutoff = self.get_threshold()
-        self.y_pred=np.where(self.predicted>=threshold_cutoff,1,0)
-        tn, fp, fn, tp = confusion_matrix(self.actual, self.y_pred).ravel()
-        precision = precision_score(self.actual, self.y_pred)
-        recall = recall_score(self.actual, self.y_pred)
-        f1 = f1_score(self.actual, self.y_pred)
-        return tn, fp, fn, tp, precision, recall, f1
-
-    def to_dict(self):
-        """Returns all calculated metrics in a `dict` form."""
-        return {'ks': self.ks, 'gini': self.gini, 'threshold': self.threshold, 'tn': self.tn, 'fp': self.fp, 'fn': self.fn, 'tp': self.tp, 'precision': self.precision, 'recall': self.recall, 'f1_score': self.f1_score}
+    try:
+        train = dev_df.copy()
+        test = val_df.copy()
+        X_train=train[features]
+        X_test=test[features]
+        y_train=train[target]
+        y_test=test[target]
+        if method=='univariate':
+            feature_importance = get_univariate_feature_importances(X_train, y_train, eval_metric=metric).set_index('feature')
+        elif method=='multivariate':
+            feature_importance = get_multivariate_feature_importances(X_train, y_train, eval_metric=metric).set_index('feature')
+        iv_df, _ = iv(X_train, y_train, n_bins=n_bins)
+        csi_df = csi(dev_df, val_df, features, target, n_bins=n_bins)
+        iv_csi = pd.merge(iv_df.groupby('var_name')['iv'].sum(),\
+                            csi_df.groupby(['var_name']).csi.sum(), on='var_name', how='outer').sort_values(by=['iv','csi'], ascending=[False, False])
+        iv_csi_importance = pd.merge(iv_csi, feature_importance, left_index=True, right_index=True).sort_values(by='relative_importance', ascending=False).rename_axis('features').reset_index()
+        iv_csi_importance.style.bar(subset=['relative_importance'], color='#5fba7d')
+        features_considered = iv_csi_importance[(iv_csi_importance.iv>=iv_ll) & (iv_csi_importance.iv<=iv_ul) & (iv_csi_importance.csi<=csi_ul)]
+        corr_cols = correlated_cols(X_train, y_train, corr)
+        if corr_cols is None:
+            features_considered = features_considered.sort_values(by='importance', ascending=False)
+        else:
+            features_considered = features_considered.loc[~features_considered.index.isin(corr_cols)].sort_values(by='importance', ascending=False)
+        # features_considered.style.bar(subset=['relative_importance'], color='#5fba7d')
+        return iv_csi_importance, features_considered.features.tolist()
+    except Exception as e:
+        logger.error(f"Error occured - {e}")
+        raise

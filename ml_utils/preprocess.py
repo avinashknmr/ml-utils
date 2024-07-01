@@ -6,6 +6,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder, On
 from sklearn.compose import make_column_transformer, ColumnTransformer
 from sklearn.pipeline import FeatureUnion, Pipeline
 import logging
+from . import config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
 logger = logging.getLogger("ML UTILS")

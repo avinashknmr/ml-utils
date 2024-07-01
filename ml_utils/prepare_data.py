@@ -6,57 +6,10 @@ and rest for validation.
 from sklearn.model_selection import train_test_split, StratifiedKFold
 import pandas as pd
 import numpy as np
-import paramiko
-import logging, os, sys
+import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
 logger = logging.getLogger("ML UTILS")
-
-from configparser import ConfigParser
-cp = ConfigParser()
-file = os.path.join(os.path.expanduser('~'),'.config','ml_utils','config.ini')
-if not os.path.isfile(file):
-    os.makedirs(os.path.join(os.path.expanduser('~'),'.config','ml_utils'), exist_ok=True)
-    cp.add_section('sas')
-    cp['sas']['host'] = ''
-    cp['sas']['username'] = ''
-    with open(file, 'w') as f:
-        cp.write(f)
-
-cp.read(file)
-config = cp['sas']
-
-def read_remote_csv(filepath, host=config['host'], username=config['username'], password=config.get('password','')):
-    """Read remote csv file into a pandas DataFrame."""
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if (password=='') or (password is None):
-        client.connect(host, username=username)
-    else:
-        client.connect(host, username=username, password=password)
-    sftp = client.open_sftp()
-    remote_file = sftp.open(filepath)
-    df = pd.read_csv(remote_file)
-    remote_file.close()
-    sftp.close()
-    client.close()
-    return df
-
-def read_remote_sas(filepath, host=config['host'], username=config['username'], password=config.get('password','')):
-    """Read remote sas7bdat file into a pandas DataFrame."""
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if (password=='') or (password is None):
-        client.connect(host, username=username)
-    else:
-        client.connect(host, username=username, password=password)
-    sftp = client.open_sftp()
-    remote_file = sftp.open(filepath)
-    df = pd.read_sas(remote_file, format='sas7bdat')
-    remote_file.close()
-    sftp.close()
-    client.close()
-    return df
 
 def mix_snapshots(S1, S2, target, random_state=1234, create_partition=True):
     """

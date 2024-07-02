@@ -6,7 +6,6 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder, On
 from sklearn.compose import make_column_transformer, ColumnTransformer
 from sklearn.pipeline import FeatureUnion, Pipeline
 import logging
-from . import config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
 logger = logging.getLogger("ML UTILS")
@@ -56,10 +55,10 @@ def preprocess(data):
     return processor
 
 def _preprocess(data):
-    # cat_cols = config['input']['features']['categorical']
     num_cols = config['input']['features']['numerical']
     oe_cols = config['input']['features']['categorical']['ordinal']
     ohe_cols = config['input']['features']['categorical']['nominal']
+    cat_cols = oe_cols + ohe_cols
 
     impute_config = config['preprocess']['impute']
     if impute_config['enabled']:

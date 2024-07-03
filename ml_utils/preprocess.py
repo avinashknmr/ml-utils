@@ -60,100 +60,134 @@ def preprocess(data):
 
     return processor
 
-def _preprocess(data, config):
-    num_cols = config['input']['features']['numerical']
-    oe_cols = config['input']['features']['categorical']['ordinal']
-    ohe_cols = config['input']['features']['categorical']['nominal']
-    cat_cols = oe_cols + ohe_cols
+class Preprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, config):
+        self.config = config
+        self._preprocessor()
 
-    impute_config = config['preprocess']['impute']
-    if impute_config['enabled']:
-        num_mean_cols = [c for c in impute_config['mean'] if c in num_cols]
-        num_median_cols = [c for c in impute_config['median'] if c in num_cols]
-        num_mode_cols = [c for c in impute_config['mode'] if c in num_cols]
-        num_const_cols = [c for c in impute_config['constant'] if c in num_cols]
+    def _preprocessor(self):
+        num_cols = self.config['input']['features']['numerical']
+        oe_cols = self.config['input']['features']['categorical']['ordinal']
+        ohe_cols = self.config['input']['features']['categorical']['nominal']
+        cat_cols = oe_cols + ohe_cols
 
-        num_mean_imp = SimpleImputer(strategy='mean')
-        num_median_imp = SimpleImputer(strategy='median')
-        num_mode_imp = SimpleImputer(strategy='most_frequent')
-        num_const_imp = SimpleImputer(strategy='constant', fill_value=0)
+        impute_config = self.config['preprocess']['impute']
+        if impute_config['enabled']:
+            num_mean_cols = [c for c in impute_config['mean'] if c in num_cols]
+            num_median_cols = [c for c in impute_config['median'] if c in num_cols]
+            num_mode_cols = [c for c in impute_config['mode'] if c in num_cols]
+            num_const_cols = [c for c in impute_config['constant'] if c in num_cols]
 
-        num_mean_pipe = Pipeline(steps=[('selector', ColumnSelector(num_mean_cols)), ('num_mean_imp', num_mean_imp)])
-        num_median_pipe = Pipeline(steps=[('selector', ColumnSelector(num_median_cols)), ('num_median_imp', num_median_imp)])
-        num_mode_pipe = Pipeline(steps=[('selector', ColumnSelector(num_mode_cols)), ('num_mode_imp', num_mode_imp)])
-        num_const_pipe = Pipeline(steps=[('selector', ColumnSelector(num_const_cols)), ('num_const_imp', num_const_imp)])
+            num_mean_imp = SimpleImputer(strategy='mean')
+            num_median_imp = SimpleImputer(strategy='median')
+            num_mode_imp = SimpleImputer(strategy='most_frequent')
+            num_const_imp = SimpleImputer(strategy='constant', fill_value=0)
 
-        num_imp = ColumnTransformer(
-            transformers=[
-                ('num_mean_imp', num_mean_pipe, num_mean_cols),
-                ('num_median_imp', num_median_pipe, num_median_cols),
-                ('num_mode_imp', num_mode_pipe, num_mode_cols),
-                ('num_const_imp', num_const_pipe, num_const_cols),
-            ], remainder='passthrough'
-        )
+            num_mean_pipe = Pipeline(steps=[('selector', ColumnSelector(num_mean_cols)), ('num_mean_imp', num_mean_imp)])
+            num_median_pipe = Pipeline(steps=[('selector', ColumnSelector(num_median_cols)), ('num_median_imp', num_median_imp)])
+            num_mode_pipe = Pipeline(steps=[('selector', ColumnSelector(num_mode_cols)), ('num_mode_imp', num_mode_imp)])
+            num_const_pipe = Pipeline(steps=[('selector', ColumnSelector(num_const_cols)), ('num_const_imp', num_const_imp)])
 
-        cat_mode_cols = [c for c in impute_config['mode'] if c in ohe_cols]
-        cat_const_cols = [c for c in impute_config['constant'] if c in ohe_cols]
+            num_imp = ColumnTransformer(
+                transformers=[
+                    ('num_mean_imp', num_mean_pipe, num_mean_cols),
+                    ('num_median_imp', num_median_pipe, num_median_cols),
+                    ('num_mode_imp', num_mode_pipe, num_mode_cols),
+                    ('num_const_imp', num_const_pipe, num_const_cols),
+                ], remainder='passthrough'
+            )
 
-        cat_const_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
-        cat_mode_imp = SimpleImputer(strategy='most_frequent')
+            cat_mode_cols = [c for c in impute_config['mode'] if c in ohe_cols]
+            cat_const_cols = [c for c in impute_config['constant'] if c in ohe_cols]
 
-        cat_mode_pipe = Pipeline(steps=[('selector', ColumnSelector(cat_mode_cols)), ('cat_mode_imp', cat_mode_imp)])
-        cat_const_pipe = Pipeline(steps=[('selector', ColumnSelector(cat_const_cols)), ('cat_const_imp', cat_const_imp)])
+            cat_const_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
+            cat_mode_imp = SimpleImputer(strategy='most_frequent')
 
-        cat_imp = ColumnTransformer(
-            transformers=[
-                ('cat_mode_imp', cat_mode_pipe, cat_mode_cols),
-                ('cat_const_imp', cat_const_pipe, cat_const_cols),
-            ], remainder='passthrough'
-        )
+            cat_mode_pipe = Pipeline(steps=[('selector', ColumnSelector(cat_mode_cols)), ('cat_mode_imp', cat_mode_imp)])
+            cat_const_pipe = Pipeline(steps=[('selector', ColumnSelector(cat_const_cols)), ('cat_const_imp', cat_const_imp)])
 
-        ord_mode_cols = [c for c in impute_config['mode'] if c in oe_cols]
-        ord_const_cols = [c for c in impute_config['constant'] if c in oe_cols]
+            cat_imp = ColumnTransformer(
+                transformers=[
+                    ('cat_mode_imp', cat_mode_pipe, cat_mode_cols),
+                    ('cat_const_imp', cat_const_pipe, cat_const_cols),
+                ], remainder='passthrough'
+            )
 
-        ord_const_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
-        ord_mode_imp = SimpleImputer(strategy='most_frequent')
+            ord_mode_cols = [c for c in impute_config['mode'] if c in oe_cols]
+            ord_const_cols = [c for c in impute_config['constant'] if c in oe_cols]
 
-        ord_mode_pipe = Pipeline(steps=[('selector', ColumnSelector(ord_mode_cols)), ('ord_mode_imp', ord_mode_imp)])
-        ord_const_pipe = Pipeline(steps=[('selector', ColumnSelector(ord_const_cols)), ('ord_const_imp', ord_const_imp)])
+            ord_const_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
+            ord_mode_imp = SimpleImputer(strategy='most_frequent')
 
-        ord_imp = ColumnTransformer(
-            transformers=[
-                ('ord_mode_imp', ord_mode_pipe, ord_mode_cols),
-                ('ord_const_imp', ord_const_pipe, ord_const_cols),
-            ], remainder='passthrough'
-        )
+            ord_mode_pipe = Pipeline(steps=[('selector', ColumnSelector(ord_mode_cols)), ('ord_mode_imp', ord_mode_imp)])
+            ord_const_pipe = Pipeline(steps=[('selector', ColumnSelector(ord_const_cols)), ('ord_const_imp', ord_const_imp)])
 
-    else:
-        num_imp = SimpleImputer(strategy='constant', fill_value=0)
-        cat_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
-        ord_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
+            ord_imp = ColumnTransformer(
+                transformers=[
+                    ('ord_mode_imp', ord_mode_pipe, ord_mode_cols),
+                    ('ord_const_imp', ord_const_pipe, ord_const_cols),
+                ], remainder='passthrough'
+            )
 
-    ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop='first')
-    oe = OrdinalEncoder()
-
-    normalize_config = config['preprocess']['normalize']
-    if normalize_config['enabled']:
-        if normalize_config['type']=='standard':
-            scaler = StandardScaler()
-        elif normalize_config['type']=='minmax':
-            scaler = MinMaxScaler()
         else:
-            raise TypeError("Normalization type can be either 'standard' or 'minmax'.")
+            num_imp = SimpleImputer(strategy='constant', fill_value=0)
+            cat_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
+            ord_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
 
-    numerical_pipe = Pipeline(steps=[('num_imp', num_imp), ('scaler', scaler)])
-    categorical_pipe = Pipeline(steps=[('cat_imp', cat_imp), ('cat_encoder', ohe)])
-    ordinal_pipe = Pipeline(steps=[('ord_imp', ord_imp), ('cat_encoder', oe)])
+        ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop='first')
+        oe = OrdinalEncoder()
 
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('numerical', numerical_pipe, num_cols),
-            ('categorical', categorical_pipe, ohe_cols),
-            ('ordinal', ordinal_pipe, oe_cols),
-        ],
-        remainder='passthrough'
-    )
+        normalize_config = self.config['preprocess']['normalize']
+        if normalize_config['enabled']:
+            if normalize_config['type']=='standard':
+                scaler = StandardScaler()
+            elif normalize_config['type']=='minmax':
+                scaler = MinMaxScaler()
+            else:
+                raise TypeError("Normalization type can be either 'standard' or 'minmax'.")
 
-    processor = preprocessor.fit(data)
+        numerical_pipe = Pipeline(steps=[('num_imp', num_imp), ('scaler', scaler)])
+        categorical_pipe = Pipeline(steps=[('cat_imp', cat_imp), ('cat_encoder', ohe)])
+        ordinal_pipe = Pipeline(steps=[('ord_imp', ord_imp), ('cat_encoder', oe)])
 
-    return processor
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ('numerical', numerical_pipe, num_cols),
+                ('categorical', categorical_pipe, ohe_cols),
+                ('ordinal', ordinal_pipe, oe_cols),
+            ],
+            remainder='passthrough'
+        )
+        self.preprocessor = preprocessor
+    
+    def get_feature_names_out(self):
+        # Get the feature names
+        feature_names = []
+        for transformer_name, transformer, features in self.preprocessor.transformers_:
+            try:
+                # Get feature names from the transformer
+                transformer_feature_names = transformer.get_feature_names(features)
+                feature_names.extend(transformer_feature_names)
+            except AttributeError:
+                # If the transformer doesn't have get_feature_names, use the original feature names
+                feature_names.extend(features)
+
+        return feature_names
+    
+    def fit(self, X, y=None):
+        self.preprocessor = self.preprocessor.fit(X)
+        return self
+
+    def transform(self, X, out_df=False):
+        if out_df:
+            return pd.DataFrame(self.preprocessor.transform(X), columns=self.get_feature_names_out())
+        else:
+            return self.preprocessor.transform(X)
+        
+    def fit_transform(self, X, y=None, out_df=False, **fit_params):
+        if y is None:
+            # fit method of arity 1 (unsupervised transformation)
+            return self.fit(X, **fit_params).transform(X, out_df=out_df)
+        else:
+            # fit method of arity 2 (supervised transformation)
+            return self.fit(X, y, **fit_params).transform(X, out_df=out_df)

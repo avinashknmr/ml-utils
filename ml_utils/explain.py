@@ -13,35 +13,35 @@ from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-logger = logging.getLogger("EXPLAIN")
+_logger = logging.getLogger("EXPLAIN")
 
 shap.initjs()
 
 class ShapExplainer:
     def __init__(self, preprocessor, model, X, y, params):
-        self.preprocessor = preprocessor
-        self.model = model
-        self.X = X
-        self.y = y
-        self.params = params
+        self._preprocessor = preprocessor
+        self._model = model
+        self._X = X
+        self._y = y
+        self._params = params
         self.explainer, self.shap_values = self._compute_shap()
     
     def _compute_shap(self):
-        self.X_transformed, _ = self.preprocessor.transform(self.X, self.y)
-        model_type = self.params['model_type']
+        self.X_transformed, _ = self._preprocessor.transform(self._X, self._y)
+        model_type = self._params['model_type']
         if model_type == 'LightGBM':
-            self.model.params['objective'] = 'binary_classification'
-            explainer = shap.TreeExplainer(self.model)
+            self._model.params['objective'] = 'binary_classification'
+            explainer = shap.TreeExplainer(self._model)
             shap_values = explainer.shap_values(self.X_transformed)
         elif model_type == 'Linear':
-            explainer = shap.LinearExplainer(self.model, self.X_transformed)
+            explainer = shap.LinearExplainer(self._model, self.X_transformed)
             shap_values = explainer.shap_values(self.X_transformed)
         elif model_type == 'Neural Network':
-            explainer = shap.KernelExplainer(self.model.predict, self.X_transformed)
+            explainer = shap.KernelExplainer(self._model.predict, self.X_transformed)
             shap_values = explainer.shap_values(self.X_transformed, nsamples=100)
         else:
-            explainer = shap.TreeExplainer(self.model)
-            shap_values = explainer.shap_values(self.X_transformed)
+            explainer = shap.TreeExplainer(self._model)
+            shap_values = explainer.shap_values(self._X_transformed)
 
         # fix for Random Forest
         if isinstance(explainer.expected_value, (list, np.ndarray)):
@@ -57,20 +57,20 @@ class ShapExplainer:
         """
         Returns SHAP Global Explainability bar chart (`shap.summary_plot`)
         """
-        return shap.summary_plot(self.shap_values, self.X, plot_type="bar", max_display=100)
+        return shap.summary_plot(self.shap_values, self._X, plot_type="bar", max_display=100)
 
     def get_local_explainability(self, datapoint=1, features_display=20):
         """
         Returns SHAP Local Explainability (`shap.force_plot`) for given datapoint.
         """
-        return shap.decision_plot(self.explainer.expected_value, self.shap_values[datapoint], features=self.X.iloc[datapoint], link='logit', highlight=0, feature_display_range=slice(None, -1*features_display-1, -1))
+        return shap.decision_plot(self.explainer.expected_value, self.shap_values[datapoint], features=self._X.iloc[datapoint], link='logit', highlight=0, feature_display_range=slice(None, -1*features_display-1, -1))
 
     def get_feature_influence(self, column):
         """
         Returns SHAP Feature Influence for a given column.
         """
-        shap_values_df=pd.DataFrame(self.shap_values, columns=self.X.columns)
-        return px.scatter(x=self.X_transformed[column], y=shap_values_df[column], color=self.y.astype('str'), marginal_x='box', marginal_y='box', labels={'x': 'Feature Values', 'y': 'Shap Values', 'color': self.y.name})
+        shap_values_df=pd.DataFrame(self.shap_values, columns=self._X.columns)
+        return px.scatter(x=self.X_transformed[column], y=shap_values_df[column], color=self._y.astype('str'), marginal_x='box', marginal_y='box', labels={'x': 'Feature Values', 'y': 'Shap Values', 'color': self._y.name})
 
     def get_partial_dependence(self, column):
         """
@@ -80,11 +80,11 @@ class ShapExplainer:
 
 class FairnessAnalyzer:
     def __init__(self, data, priv_category, priv_value, target_label, priv_target_value, ignore_cols=None):
-        self.data = data
-        self.priv_category = priv_category
-        self.priv_value = priv_value
-        self.target_label = target_label
-        self.priv_target_value = priv_target_value
+        self._data = data
+        self._priv_category = priv_category
+        self._priv_value = priv_value
+        self._target_label = target_label
+        self._priv_target_value = priv_target_value
         self._prepare_data(ignore_cols=ignore_cols)
 
     def _prepare_data(self, ignore_cols=None):
@@ -107,13 +107,13 @@ class FairnessAnalyzer:
         """
         
         if ignore_cols:
-            self.data = self.data.drop(ignore_cols, axis=1)
+            self._data = self._data.drop(ignore_cols, axis=1)
         else:
             pass
         
         # Get categorical features
-        self.categorical_features = self.data.columns[self.data.dtypes == 'object']
-        data_encoded = self.data.copy()
+        self.categorical_features = self._data.columns[self._data.dtypes == 'object']
+        data_encoded = self._data.copy()
         
         # Store categorical names and encoders
         categorical_names = {}
@@ -130,7 +130,7 @@ class FairnessAnalyzer:
             self.encoders[feature] = le
             
         # Scale numeric columns
-        self.numerical_features = [c for c in self.data.columns.values if c not in self.categorical_features]
+        self.numerical_features = [c for c in self._data.columns.values if c not in self.categorical_features]
 
         for feature in self.numerical_features:
             val = data_encoded[feature].values[:, np.newaxis]
@@ -140,13 +140,13 @@ class FairnessAnalyzer:
 
         data_encoded = data_encoded.astype(float)
         
-        privileged_class = np.where(categorical_names[self.priv_category]==self.priv_value)[0]
-        encoded_target_label = np.where(categorical_names[self.target_label]==self.priv_target_value)[0]
+        privileged_class = np.where(categorical_names[self._priv_category]==self._priv_value)[0]
+        encoded_target_label = np.where(categorical_names[self._target_label]==self._priv_target_value)[0]
         
-        self.data_priv = StandardDataset(data_encoded, 
-                                label_name=self.target_label, 
+        self._data_priv = StandardDataset(data_encoded, 
+                                label_name=self._target_label, 
                                 favorable_classes=encoded_target_label, 
-                                protected_attribute_names=[self.priv_category], 
+                                protected_attribute_names=[self._priv_category], 
                                 privileged_classes=[privileged_class])
 
     def _get_fairness_metrics(self, pred, pred_is_dataset=False):
@@ -164,7 +164,7 @@ class FairnessAnalyzer:
         if pred_is_dataset:
             dataset_pred = pred
         else:
-            dataset_pred = self.data.copy()
+            dataset_pred = self._data.copy()
             dataset_pred.labels = pred
         
         cols = [
@@ -184,7 +184,7 @@ class FairnessAnalyzer:
             privileged_groups =  [{attr:dataset_pred.privileged_protected_attributes[idx][0]}]
             unprivileged_groups = [{attr:dataset_pred.unprivileged_protected_attributes[idx][0]}]
             
-            classified_metric = ClassificationMetric(self.data, 
+            classified_metric = ClassificationMetric(self._data, 
                                                         dataset_pred,
                                                         unprivileged_groups=unprivileged_groups,
                                                         privileged_groups=privileged_groups)
@@ -229,7 +229,7 @@ class FairnessAnalyzer:
         # data_orig, encoders, numerical_features, categorical_features
 
         np.random.seed(42)
-        data_priv_train, data_priv_test = self.data_priv.split([0.7], shuffle=True)
+        data_priv_train, data_priv_test = self._data_priv.split([0.7], shuffle=True)
         
         # Train and save the models
         rf_orig = RandomForestClassifier().fit(data_priv_train.features, 
@@ -257,13 +257,13 @@ class FairnessAnalyzer:
         Returns:
             Wasserstein distance.
         """
-        df = self.data.copy()
+        df = self._data.copy()
         col = prediction_col
         if logit:
             col = 'logit'
             df[col] = df[prediction_col].apply(lambda x: np.log(x/(1-x)))
-        protected = df.loc[df[self.priv_category]==self.priv_value, col].tolist()
-        unprotected = df.loc[df[self.priv_category]!=self.priv_value, col].tolist()
+        protected = df.loc[df[self._priv_category]==self._priv_value, col].tolist()
+        unprotected = df.loc[df[self._priv_category]!=self._priv_value, col].tolist()
         return wd(protected, unprotected)
 
     def wasserstein_distance_plot(self, prediction_col='positive_probability', logit=True):
@@ -280,13 +280,13 @@ class FairnessAnalyzer:
         Returns:
             Density comparison chart.
         """
-        df = self.data.copy()
+        df = self._data.copy()
         xvar = prediction_col
-        df[self.priv_category] = df[self.priv_category].apply(lambda x: self.priv_value if x==self.priv_value else 'Rest')
+        df[self._priv_category] = df[self._priv_category].apply(lambda x: self._priv_value if x==self._priv_value else 'Rest')
         if logit:
             xvar = 'logit'
             df[xvar] = df[prediction_col].apply(lambda x: np.log(x/(1-x)))
-        sns.displot(data=df, x=xvar, hue=self.priv_category, kind='kde', fill=True, aspect=3)
+        sns.displot(data=df, x=xvar, hue=self._priv_category, kind='kde', fill=True, aspect=3)
         plt.title('Model Score Disparity')
         plt.xlabel('Model Score')
         plt.ylabel('Density')
@@ -318,5 +318,5 @@ def get_feature_impact(model_path, model_name, method='mean'): # irrelevant in c
         feature_impact = feature_impact.reset_index().sort_values(by='relative_impact')
         return feature_impact
     except Exception as e:
-        logger.error(f"Error occured - {e}")
+        _logger.error(f"Error occured - {e}")
         raise

@@ -16,7 +16,7 @@ from sklearn.metrics import roc_curve, precision_recall_curve
 import logging, os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-logger = logging.getLogger("ML UTILS")
+_logger = logging.getLogger("ML UTILS")
 
 sns.set_theme(style="whitegrid")
 

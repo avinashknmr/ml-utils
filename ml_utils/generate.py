@@ -10,7 +10,8 @@ import openpyxl
 # import mlflow
 
 from .draw import csi_plot, iv_plot
-from .measure import standard_metrics, decilewise_counts, _quick_psi
+from .measure.metrics import Metrics
+from .feature_selection import _quick_psi
 
 if hasattr(sys.modules['__main__'],'get_ipython'):
     from tqdm.notebook import tqdm
@@ -18,7 +19,7 @@ else:
     from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-logger = logging.getLogger("ML UTILS")
+_logger = logging.getLogger("ML UTILS")
 
 def leaderboard_report(input_path, resp_col, prediction_col='positive_probability', outfile_name='results.xlsx', leaderboard_file='algo_leaderboard.csv', log_mlflow=False):
     """
@@ -31,7 +32,7 @@ def leaderboard_report(input_path, resp_col, prediction_col='positive_probabilit
     final_df = []
     psi_metrics = {}
     dw_cutoffs = {}
-    logger.info('Calculating Metrics...')
+    _logger.info('Calculating Metrics...')
     for m in tqdm(models):
         metrics = {}
         dw_counts = {}
@@ -45,7 +46,7 @@ def leaderboard_report(input_path, resp_col, prediction_col='positive_probabilit
 
             src = 'S1' if 'S1' in f else 'S2' if 'S2' in f else 'S3' if 'S3' in f else 'S4060'
             df = pd.read_csv(os.path.join(input_path, f))
-            metrics[f] = standard_metrics(df, resp_col, prediction_col)
+            metrics[f] = Metrics(df[resp_col], df[prediction_col]).values
             try:
                 dw = decilewise_counts(df, resp_col, prediction_col, cutpoints=dev_cuts)
             except:
@@ -81,13 +82,13 @@ def leaderboard_report(input_path, resp_col, prediction_col='positive_probabilit
     # if log_mlflow:
     #     mlflow.set_tracking_uri('http://uklvadsb0358.uk.dev.net:5000')
     #     mlflow.set_experiment('SG CC')
-    #     logger.info('Writing results to MLFlow')
+    #     _logger.info('Writing results to MLFlow')
     #     for i, r in tqdm(final[:2].iterrows()):
     #         with mlflow.start_run(run_name=r.model_id) as run:
     #             mlflow.log_params({'model_name': r.model, 'featurelist_name': featurelist_name})
     #             mlflow.log_metrics({'gini_S1': r.gini_S1, 'gini_S2': r.gini_S2, 'gini_variance': r.gini_variance, 'psi': r.psi_S2, 'rankbreak_flag_S1': r.rankbreak_flag_S1, 'rankbreak_flag_S2': r.rankbreak_flag_S2, 'capturerate_before_ro_break_S1': r.capturerate_before_ro_break_S1, 'capturerate_before_ro_break_S2': r.capturerate_before_ro_break_S2})
     #             mlflow.log_dict(r.to_dict(), 'metrics.json')
-    logger.info(f'Model Evaluation Report Generated - {outfile_name}')
+    _logger.info(f'Model Evaluation Report Generated - {outfile_name}')
 
 def csi_report(csi_df, csi_excel_name, feature_cols=None):
     """Generate CSI Report."""
@@ -96,7 +97,7 @@ def csi_report(csi_df, csi_excel_name, feature_cols=None):
     csi_summary = csi_df.groupby('var_name')[['iv_dev','iv_oot','csi']].sum().sort_values(by=['iv_dev','iv_oot','csi'], ascending=[False, False, True]).reset_index()
     csi_summary.to_excel(writer, sheet_name='CSI_Summary', engine='openpyxl', index=False)
     i=0
-    logger.info('Generating CSI Data...')
+    _logger.info('Generating CSI Data...')
     for col in tqdm(feature_cols):
         sub_df = csi_df[csi_df['var_name']==col]
         sub_df.to_excel(writer, sheet_name='CSI', engine='openpyxl', index=False, startrow=i, startcol=0)
@@ -106,7 +107,7 @@ def csi_report(csi_df, csi_excel_name, feature_cols=None):
     wb = openpyxl.load_workbook(csi_excel_name)
     ws = wb['CSI']
     i=1
-    logger.info('Generating CSI Plots...')
+    _logger.info('Generating CSI Plots...')
     for col in tqdm(feature_cols):
         try:
             f = csi_plot(csi_df,col)
@@ -116,11 +117,11 @@ def csi_report(csi_df, csi_excel_name, feature_cols=None):
             ws.add_image(img)
             wb.save(csi_excel_name)
         except:
-            logger.error(f'Could not generate plot for {col}')
+            _logger.error(f'Could not generate plot for {col}')
         i += max(sub_df.shape[0],20)+4
     wb.close()
     # os.remove('figure.jpg')
-    logger.info(f'CSI Report Generated - {csi_excel_name}')
+    _logger.info(f'CSI Report Generated - {csi_excel_name}')
 
 def iv_report(iv_df, iv_excel_name, feature_cols=None, suffix='_dev'):
     """Generate IV Report."""
@@ -129,7 +130,7 @@ def iv_report(iv_df, iv_excel_name, feature_cols=None, suffix='_dev'):
     iv_summary = iv_df.groupby('var_name')['iv'+suffix].sum().sort_values(ascending=False).reset_index()
     iv_summary.to_excel(writer, sheet_name='IV_Summary', engine='openpyxl', index=False)
     i=0
-    logger.info('Generating IV Data...')
+    _logger.info('Generating IV Data...')
     for col in tqdm(feature_cols):
         sub_df = iv_df[iv_df['var_name']==col]
         sub_df.to_excel(writer, sheet_name='IV', engine='openpyxl', index=False, startrow=i, startcol=0)
@@ -139,7 +140,7 @@ def iv_report(iv_df, iv_excel_name, feature_cols=None, suffix='_dev'):
     wb = openpyxl.load_workbook(iv_excel_name)
     ws = wb['IV']
     i=1
-    logger.info('Generating IV Plots...')
+    _logger.info('Generating IV Plots...')
     for col in tqdm(feature_cols):
         try:
             f = iv_plot(iv_df, col)
@@ -149,8 +150,8 @@ def iv_report(iv_df, iv_excel_name, feature_cols=None, suffix='_dev'):
             ws.add_image(img)
             wb.save(iv_excel_name)
         except:
-            logger.error(f'Could not generate plot for {col}')
+            _logger.error(f'Could not generate plot for {col}')
         i += max(sub_df.shape[0],20)+4
     wb.close()
     # os.remove('figure.jpg')
-    logger.info(f'IV Report Generated - {iv_excel_name}')
+    _logger.info(f'IV Report Generated - {iv_excel_name}')

@@ -4,7 +4,7 @@ import numpy as np
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-logger = logging.getLogger("ML UTILS")
+_logger = logging.getLogger("ML UTILS")
 
 def gsi(data, col='GENDER', col_val='F', target='positive_probability', n_bins=10):
     """

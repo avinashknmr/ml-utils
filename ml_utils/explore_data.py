@@ -1,7 +1,7 @@
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-logger = logging.getLogger("ML UTILS")
+_logger = logging.getLogger("ML UTILS")
 
 def get_exploratory_analysis(df, features):
     """
@@ -16,7 +16,7 @@ def get_exploratory_analysis(df, features):
         desc = df[features].describe(include='all').T.merge(nmiss, how='left', left_index=True, right_index=True).rename_axis('features').reset_index()
         return desc.fillna('')
     except Exception as e:
-        logger.error(f"Error occured - {e}")
+        _logger.error(f"Error occured - {e}")
         raise
 
 def correlated_cols(df, features, target, threshold=0.9):

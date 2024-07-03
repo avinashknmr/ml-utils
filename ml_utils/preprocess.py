@@ -8,11 +8,13 @@ from sklearn.pipeline import FeatureUnion, Pipeline
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-logger = logging.getLogger("ML UTILS")
+_logger = logging.getLogger("ML UTILS")
 
 class ColumnSelector(BaseEstimator, TransformerMixin):
+    """
+    """
     def __init__(self, columns=None):
-        self.columns = columns
+        self._columns = columns
 
     def fit(self, X, y=None):
         return self
@@ -21,57 +23,25 @@ class ColumnSelector(BaseEstimator, TransformerMixin):
         if not isinstance(X, pd.DataFrame):
             raise ValueError("Input should be a pandas DataFrame")
 
-        if self.columns is None:
+        if self._columns is None:
             return X
         else:
-            return X[self.columns]
-
-def preprocess(data):
-    cat_cols = data.select_dtypes('object').columns
-    oe_cols = [c for c in cat_cols if data[c].nunique()>3]
-    ohe_cols = [c for c in cat_cols if c not in oe_cols]
-
-    cat_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
-    ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop='first')
-    oe = OrdinalEncoder()
-
-    ohe_pipe = Pipeline(steps=[('selector', ColumnSelector(ohe_cols)), ('encoder', ohe)])
-    oe_pipe = Pipeline(steps=[('selector', ColumnSelector(oe_cols)), ('encoder', oe)])
-
-    cat_preprocess = FeatureUnion(
-        [('ordinal_encoding', oe_pipe),
-        ('onehot_encoding', ohe_pipe)]
-    )
-
-    num_cols = data.select_dtypes('number').columns
-    num_imp = SimpleImputer(strategy='constant', fill_value=0)
-    scaler = StandardScaler()
-
-    numerical_transformer = Pipeline(steps=[('num_imp', num_imp), ('scaler', scaler)])
-    categorical_transformer = Pipeline(steps=[('cat_imp', cat_imp), ('cat_preprocess', cat_preprocess if oe_cols else ohe)])
-
-    preprocess = ColumnTransformer(
-        transformers=[('numerical', numerical_transformer, num_cols),
-        ('categorical', categorical_transformer, cat_cols)],
-        remainder='passthrough', verbose_feature_names_out=False
-    )
-
-    processor = preprocess.fit(data)
-
-    return processor
+            return X[self._columns]
 
 class Preprocessor(BaseEstimator, TransformerMixin):
+    """
+    """
     def __init__(self, config):
-        self.config = config
+        self._config = config
         self._preprocessor()
 
     def _preprocessor(self):
-        num_cols = self.config['input']['features']['numerical']
-        oe_cols = self.config['input']['features']['categorical']['ordinal']
-        ohe_cols = self.config['input']['features']['categorical']['nominal']
+        num_cols = self._config['input']['features']['numerical']
+        oe_cols = self._config['input']['features']['categorical']['ordinal']
+        ohe_cols = self._config['input']['features']['categorical']['nominal']
         cat_cols = oe_cols + ohe_cols
 
-        impute_config = self.config['preprocess']['impute']
+        impute_config = self._config['preprocess']['impute']
         if impute_config['enabled']:
             num_mean_cols = [c for c in impute_config['mean'] if c in num_cols]
             num_median_cols = [c for c in impute_config['median'] if c in num_cols]
@@ -137,7 +107,7 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop='first')
         oe = OrdinalEncoder()
 
-        normalize_config = self.config['preprocess']['normalize']
+        normalize_config = self._config['preprocess']['normalize']
         if normalize_config['enabled']:
             if normalize_config['type']=='standard':
                 scaler = StandardScaler()
@@ -191,3 +161,37 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         else:
             # fit method of arity 2 (supervised transformation)
             return self.fit(X, y, **fit_params).transform(X, out_df=out_df)
+        
+def preprocess(data):
+    cat_cols = data.select_dtypes('object').columns
+    oe_cols = [c for c in cat_cols if data[c].nunique()>3]
+    ohe_cols = [c for c in cat_cols if c not in oe_cols]
+
+    cat_imp = SimpleImputer(strategy='constant', fill_value='0.Missing')
+    ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop='first')
+    oe = OrdinalEncoder()
+
+    ohe_pipe = Pipeline(steps=[('selector', ColumnSelector(ohe_cols)), ('encoder', ohe)])
+    oe_pipe = Pipeline(steps=[('selector', ColumnSelector(oe_cols)), ('encoder', oe)])
+
+    cat_preprocess = FeatureUnion(
+        [('ordinal_encoding', oe_pipe),
+        ('onehot_encoding', ohe_pipe)]
+    )
+
+    num_cols = data.select_dtypes('number').columns
+    num_imp = SimpleImputer(strategy='constant', fill_value=0)
+    scaler = StandardScaler()
+
+    numerical_transformer = Pipeline(steps=[('num_imp', num_imp), ('scaler', scaler)])
+    categorical_transformer = Pipeline(steps=[('cat_imp', cat_imp), ('cat_preprocess', cat_preprocess if oe_cols else ohe)])
+
+    preprocess = ColumnTransformer(
+        transformers=[('numerical', numerical_transformer, num_cols),
+        ('categorical', categorical_transformer, cat_cols)],
+        remainder='passthrough', verbose_feature_names_out=False
+    )
+
+    processor = preprocess.fit(data)
+
+    return processor

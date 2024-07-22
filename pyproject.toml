@@ -19,6 +19,7 @@ shap = "^0.46.0"
 aif360 = "^0.6.1"
 plotly = "^5.22.0"
 pyyaml = "^6.0.1"
+loguru = "^0.7.2"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -8,10 +8,7 @@ import numpy as np
 from sklearn.metrics import roc_curve, auc, confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.metrics import average_precision_score, precision_recall_curve
 
-import logging
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-_logger = logging.getLogger("ML UTILS")
+from loguru import logger
 
 class Metrics:
     def __init__(self, actuals, predictions):

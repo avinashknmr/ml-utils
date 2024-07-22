@@ -12,10 +12,7 @@ from ..explore_data import correlated_cols
 
 from ._woe_binning import woe_binning, woe_binning_2, woe_binning_3
 
-import logging
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-_logger = logging.getLogger("ML UTILS")
+from loguru import logger
 
 def woe_bins(df, var_name, resp_name, suffix='_dev', var_cuts=None):
     """
@@ -297,5 +294,5 @@ def get_feature_importances(dev_df, val_df, features, target, metric='auc', meth
         # features_considered.style.bar(subset=['relative_importance'], color='#5fba7d')
         return iv_csi_importance, features_considered.features.tolist()
     except Exception as e:
-        _logger.error(f"Error occured - {e}")
+        logger.error(f"Error occured - {e}")
         raise

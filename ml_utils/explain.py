@@ -1,4 +1,4 @@
-import logging, glob, os
+import glob, os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,14 +6,12 @@ import plotly.express as px
 from scipy.stats import wasserstein_distance as wd
 import seaborn as sns
 import shap
+from loguru import logger
 
 from aif360.datasets import StandardDataset
 from aif360.metrics import BinaryLabelDatasetMetric, ClassificationMetric
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-_logger = logging.getLogger("EXPLAIN")
 
 shap.initjs()
 
@@ -318,5 +316,5 @@ def get_feature_impact(model_path, model_name, method='mean'): # irrelevant in c
         feature_impact = feature_impact.reset_index().sort_values(by='relative_impact')
         return feature_impact
     except Exception as e:
-        _logger.error(f"Error occured - {e}")
+        logger.error(f"Error occured - {e}")
         raise

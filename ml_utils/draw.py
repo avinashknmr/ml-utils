@@ -13,10 +13,8 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, precision_recall_curve
-import logging, os
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
-_logger = logging.getLogger("ML UTILS")
+import os
+from loguru import logger
 
 sns.set_theme(style="whitegrid")
 

@@ -5,8 +5,7 @@ Chi Square with IV (Informational Value)
 """
 import pandas as pd
 import numpy as np
-from sklearn.metrics import roc_curve, auc, confusion_matrix, precision_score, recall_score, f1_score
-from sklearn.metrics import average_precision_score, precision_recall_curve
+from sklearn.metrics import roc_curve, auc, confusion_matrix, precision_score, recall_score, f1_score, precision_recall_curve
 
 from loguru import logger
 

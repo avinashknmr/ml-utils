@@ -133,3 +133,4 @@ dmypy.json
 
 # Data / csv / xlsx
 data/
+.DS_Store
